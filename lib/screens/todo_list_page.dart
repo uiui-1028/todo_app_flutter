@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../todo.dart';
+import 'todo_detail_page.dart';
 
 class TodoListItem extends StatelessWidget {
   final Todo todo;
   final ValueChanged<bool?> onChanged;
   final VoidCallback onDelete;
+  final VoidCallback onToggleImportant;
   final bool isDragging;
   final bool isFeedback;
   final Color? activeColor;
@@ -16,6 +18,7 @@ class TodoListItem extends StatelessWidget {
     required this.todo,
     required this.onChanged,
     required this.onDelete,
+    required this.onToggleImportant,
     this.isDragging = false,
     this.isFeedback = false,
     this.activeColor,
@@ -27,10 +30,23 @@ class TodoListItem extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: isFeedback ? 4 : 2,
       child: ListTile(
-        leading: Checkbox(
-          value: todo.isDone,
-          onChanged: isFeedback ? null : onChanged,
-          activeColor: activeColor,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                todo.isImportant ? Icons.star : Icons.star_border,
+                color: todo.isImportant ? Colors.amber : Colors.grey,
+              ),
+              onPressed: isFeedback ? null : onToggleImportant,
+              tooltip: '重要',
+            ),
+            Checkbox(
+              value: todo.isDone,
+              onChanged: isFeedback ? null : onChanged,
+              activeColor: activeColor,
+            ),
+          ],
         ),
         title: Text(
           todo.title,
@@ -272,8 +288,70 @@ class _TodoListPageState extends State<TodoListPage> {
                 final todo = tasks[index];
                 return LongPressDraggable<Todo>(
                   data: todo,
-                  feedback: Material(
-                    color: Colors.transparent,
+                  feedback: TodoListItem(
+                    todo: todo,
+                    onChanged: (checked) {
+                      setState(() {
+                        todo.isDone = checked ?? false;
+                      });
+                      _saveTasks();
+                    },
+                    onDelete: () {
+                      setState(() {
+                        tasksByList[_selectedListKey]?.remove(todo);
+                      });
+                      _saveTasks();
+                    },
+                    onToggleImportant: () {
+                      setState(() {
+                        todo.isImportant = !todo.isImportant;
+                      });
+                      _saveTasks();
+                    },
+                    isFeedback: true,
+                  ),
+                  childWhenDragging: TodoListItem(
+                    todo: todo,
+                    onChanged: (checked) {
+                      setState(() {
+                        todo.isDone = checked ?? false;
+                      });
+                      _saveTasks();
+                    },
+                    onDelete: () {
+                      setState(() {
+                        tasksByList[_selectedListKey]?.remove(todo);
+                      });
+                      _saveTasks();
+                    },
+                    onToggleImportant: () {
+                      setState(() {
+                        todo.isImportant = !todo.isImportant;
+                      });
+                      _saveTasks();
+                    },
+                    isDragging: true,
+                  ),
+                  child: GestureDetector(
+                    onTap: () async {
+                      final updated = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TodoDetailPage(todo: todo),
+                        ),
+                      );
+                      if (updated is Todo) {
+                        setState(() {
+                          final idx = tasksByList[_selectedListKey]?.indexOf(
+                            todo,
+                          );
+                          if (idx != null && idx >= 0) {
+                            tasksByList[_selectedListKey]![idx] = updated;
+                          }
+                        });
+                        _saveTasks();
+                      }
+                    },
                     child: TodoListItem(
                       todo: todo,
                       onChanged: (checked) {
@@ -288,39 +366,14 @@ class _TodoListPageState extends State<TodoListPage> {
                         });
                         _saveTasks();
                       },
-                      isFeedback: true,
+                      onToggleImportant: () {
+                        setState(() {
+                          todo.isImportant = !todo.isImportant;
+                        });
+                        _saveTasks();
+                      },
+                      activeColor: _selectedListColor,
                     ),
-                  ),
-                  childWhenDragging: TodoListItem(
-                    todo: todo,
-                    onChanged: (checked) {
-                      setState(() {
-                        todo.isDone = checked ?? false;
-                      });
-                    },
-                    onDelete: () {
-                      setState(() {
-                        tasksByList[_selectedListKey]?.remove(todo);
-                      });
-                      _saveTasks();
-                    },
-                    isDragging: true,
-                  ),
-                  child: TodoListItem(
-                    todo: todo,
-                    onChanged: (checked) {
-                      setState(() {
-                        todo.isDone = checked ?? false;
-                      });
-                      _saveTasks();
-                    },
-                    onDelete: () {
-                      setState(() {
-                        tasksByList[_selectedListKey]?.remove(todo);
-                      });
-                      _saveTasks();
-                    },
-                    activeColor: _selectedListColor,
                   ),
                 );
               },
