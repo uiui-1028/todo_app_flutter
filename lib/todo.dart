@@ -1,9 +1,12 @@
+import 'models/step.dart';
+
 class Todo {
   final String title;
   bool isDone;
   bool isImportant;
   String note;
   DateTime? dueDate;
+  List<Step> steps;
 
   Todo({
     required this.title,
@@ -11,7 +14,8 @@ class Todo {
     this.isImportant = false,
     this.note = '',
     this.dueDate,
-  });
+    List<Step>? steps,
+  }) : steps = steps ?? [];
 
   Todo copyWith({
     String? title,
@@ -19,6 +23,7 @@ class Todo {
     bool? isImportant,
     String? note,
     DateTime? dueDate,
+    List<Step>? steps,
   }) {
     return Todo(
       title: title ?? this.title,
@@ -26,6 +31,7 @@ class Todo {
       isImportant: isImportant ?? this.isImportant,
       note: note ?? this.note,
       dueDate: dueDate ?? this.dueDate,
+      steps: steps ?? List<Step>.from(this.steps),
     );
   }
 
@@ -38,6 +44,8 @@ class Todo {
       dueDate: json['dueDate'] != null
           ? DateTime.tryParse(json['dueDate'])
           : null,
+      steps:
+          (json['steps'] as List?)?.map((e) => Step.fromJson(e)).toList() ?? [],
     );
   }
 
@@ -48,6 +56,7 @@ class Todo {
       'isImportant': isImportant,
       'note': note,
       'dueDate': dueDate?.toIso8601String(),
+      'steps': steps.map((s) => s.toJson()).toList(),
     };
   }
 }
