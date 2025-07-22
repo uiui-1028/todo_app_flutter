@@ -50,12 +50,6 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
     if (auto) {
       // 親画面に戻らず、値だけ返す
       Navigator.of(context).pop(updated);
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => MainScreen()),
-        (route) => false,
-      );
-    } else {
-      Navigator.of(context).pop(updated);
     }
   }
 
