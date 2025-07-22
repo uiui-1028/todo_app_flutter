@@ -7,6 +7,7 @@ class Todo {
   String note;
   DateTime? dueDate;
   List<Step> steps;
+  List<String> tags;
 
   Todo({
     required this.title,
@@ -15,7 +16,9 @@ class Todo {
     this.note = '',
     this.dueDate,
     List<Step>? steps,
-  }) : steps = steps ?? [];
+    List<String>? tags,
+  }) : steps = steps ?? [],
+       tags = tags ?? [];
 
   Todo copyWith({
     String? title,
@@ -24,6 +27,7 @@ class Todo {
     String? note,
     DateTime? dueDate,
     List<Step>? steps,
+    List<String>? tags,
   }) {
     return Todo(
       title: title ?? this.title,
@@ -32,6 +36,7 @@ class Todo {
       note: note ?? this.note,
       dueDate: dueDate ?? this.dueDate,
       steps: steps ?? List<Step>.from(this.steps),
+      tags: tags ?? List<String>.from(this.tags),
     );
   }
 
@@ -46,6 +51,7 @@ class Todo {
           : null,
       steps:
           (json['steps'] as List?)?.map((e) => Step.fromJson(e)).toList() ?? [],
+      tags: (json['tags'] as List?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 
@@ -57,6 +63,7 @@ class Todo {
       'note': note,
       'dueDate': dueDate?.toIso8601String(),
       'steps': steps.map((s) => s.toJson()).toList(),
+      'tags': tags,
     };
   }
 }

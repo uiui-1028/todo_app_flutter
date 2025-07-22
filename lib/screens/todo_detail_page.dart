@@ -17,6 +17,8 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
   late List<step_model.Step> steps;
   final TextEditingController stepInputController = TextEditingController();
   DateTime? dueDate;
+  List<String> tags = [];
+  final TextEditingController customTagController = TextEditingController();
 
   @override
   void initState() {
@@ -25,6 +27,7 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
     noteController = TextEditingController(text: widget.todo.note);
     steps = List<step_model.Step>.from(widget.todo.steps);
     dueDate = widget.todo.dueDate;
+    tags = List<String>.from(widget.todo.tags);
     noteController.addListener(_autoSave);
   }
 
@@ -46,9 +49,9 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
       note: noteController.text,
       steps: steps,
       dueDate: dueDate,
+      tags: tags,
     );
     if (auto) {
-      // 親画面に戻らず、値だけ返す
       Navigator.of(context).pop(updated);
     }
   }
@@ -110,6 +113,11 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
             onPressed: () {
               setState(() {
                 isImportant = !isImportant;
+                if (isImportant && !tags.contains('important')) {
+                  tags.add('important');
+                } else if (!isImportant && tags.contains('important')) {
+                  tags.remove('important');
+                }
               });
               _autoSave();
             },
@@ -121,6 +129,80 @@ class _TodoDetailPageState extends State<TodoDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: tags.contains('today'),
+                  onChanged: (checked) {
+                    setState(() {
+                      if (checked == true && !tags.contains('today')) {
+                        tags.add('today');
+                      } else if (checked == false && tags.contains('today')) {
+                        tags.remove('today');
+                      }
+                    });
+                    _autoSave();
+                  },
+                ),
+                const Text('今日'),
+                const SizedBox(width: 24),
+                Checkbox(
+                  value: tags.contains('important'),
+                  onChanged: (checked) {
+                    setState(() {
+                      isImportant = checked ?? false;
+                      if (isImportant && !tags.contains('important')) {
+                        tags.add('important');
+                      } else if (!isImportant && tags.contains('important')) {
+                        tags.remove('important');
+                      }
+                    });
+                    _autoSave();
+                  },
+                ),
+                const Text('重要'),
+              ],
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: customTagController,
+                    decoration: const InputDecoration(hintText: 'カスタムタグを追加'),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () {
+                    final tag = customTagController.text.trim();
+                    if (tag.isNotEmpty && !tags.contains(tag)) {
+                      setState(() {
+                        tags.add(tag);
+                        customTagController.clear();
+                      });
+                      _autoSave();
+                    }
+                  },
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              children: tags
+                  .map(
+                    (tag) => Chip(
+                      label: Text(tag),
+                      onDeleted: () {
+                        setState(() {
+                          tags.remove(tag);
+                          if (tag == 'important') isImportant = false;
+                        });
+                        _autoSave();
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
             ListTile(
               leading: const Icon(Icons.event),
               title: Text(_formatDueDate(dueDate)),

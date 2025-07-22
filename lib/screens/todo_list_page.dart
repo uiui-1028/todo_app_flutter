@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../todo.dart';
 import 'todo_detail_page.dart';
+import 'todo_add_page.dart';
 
 class TodoListItem extends StatelessWidget {
   final Todo todo;
@@ -70,10 +71,16 @@ class TodoListPage extends StatefulWidget {
   State<TodoListPage> createState() => _TodoListPageState();
 }
 
-enum SmartListType { today, important, planned }
+enum SmartListType { all, today, important, custom }
 
 class _TodoListPageState extends State<TodoListPage> {
   final List<Map<String, dynamic>> smartLists = [
+    {
+      'type': SmartListType.all,
+      'title': 'すべて',
+      'icon': Icons.list,
+      'color': Colors.grey,
+    },
     {
       'type': SmartListType.today,
       'title': '今日',
@@ -86,34 +93,11 @@ class _TodoListPageState extends State<TodoListPage> {
       'icon': Icons.star,
       'color': Colors.red,
     },
-    {
-      'type': SmartListType.planned,
-      'title': '計画済み',
-      'icon': Icons.calendar_today,
-      'color': Colors.purple,
-    },
   ];
-  final List<Map<String, dynamic>> myLists = [
-    {'id': '1', 'name': '仕事', 'emoji': '💼', 'color': Colors.blue},
-    {'id': '2', 'name': 'プライベート', 'emoji': '🏠', 'color': Colors.green},
-    {'id': '3', 'name': '買い物', 'emoji': '🛒', 'color': Colors.orange},
-  ];
-  Map<String, List<Todo>> tasksByList = {
-    'today': [Todo(title: 'レポート提出'), Todo(title: '会議参加')],
-    'important': [Todo(title: 'レポート提出'), Todo(title: '家賃支払い')],
-    'planned': [Todo(title: '旅行予約')],
-    '1': [Todo(title: 'レポート提出'), Todo(title: '会議参加')],
-    '2': [Todo(title: '家賃支払い')],
-    '3': [Todo(title: '旅行予約')],
-  };
-
-  static const String _storageKey = 'tasksByList';
-
-  String _selectedListKey = 'today';
-  String _selectedListTitle = '今日';
-  Color _selectedListColor = Colors.blue;
-  IconData? _selectedListIcon = Icons.wb_sunny;
-  String? _selectedListEmoji;
+  List<Todo> tasks = [];
+  static const String _storageKey = 'tasks';
+  SmartListType _selectedListType = SmartListType.today;
+  String? _selectedCustomTag;
 
   @override
   void initState() {
@@ -125,77 +109,86 @@ class _TodoListPageState extends State<TodoListPage> {
     final prefs = await SharedPreferences.getInstance();
     final jsonString = prefs.getString(_storageKey);
     if (jsonString != null) {
-      final Map<String, dynamic> decoded = json.decode(jsonString);
+      final List<dynamic> decoded = json.decode(jsonString);
       setState(() {
-        tasksByList = decoded.map(
-          (key, value) => MapEntry(
-            key,
-            (value as List).map((e) => Todo.fromJson(e)).toList(),
-          ),
-        );
+        tasks = decoded.map((e) => Todo.fromJson(e)).toList();
       });
     }
   }
 
   Future<void> _saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = json.encode(
-      tasksByList.map(
-        (key, value) =>
-            MapEntry(key, value.map((todo) => todo.toJson()).toList()),
-      ),
-    );
+    final jsonString = json.encode(tasks.map((todo) => todo.toJson()).toList());
     await prefs.setString(_storageKey, jsonString);
   }
 
   void _selectSmartList(Map<String, dynamic> smartList) {
     setState(() {
-      _selectedListKey = smartList['type'].toString().split('.').last;
-      _selectedListTitle = smartList['title'];
-      _selectedListColor = smartList['color'];
-      _selectedListIcon = smartList['icon'];
-      _selectedListEmoji = null;
+      _selectedListType = smartList['type'];
+      _selectedCustomTag = null;
     });
     Navigator.of(context).pop();
   }
 
-  void _selectMyList(Map<String, dynamic> myList) {
+  void _selectCustomTag(String tag) {
     setState(() {
-      _selectedListKey = myList['id'];
-      _selectedListTitle = myList['name'];
-      _selectedListColor = myList['color'];
-      _selectedListIcon = null;
-      _selectedListEmoji = myList['emoji'];
+      _selectedListType = SmartListType.custom;
+      _selectedCustomTag = tag;
     });
     Navigator.of(context).pop();
   }
 
-  String? _dragTargetListId;
+  List<String> get customTags {
+    final tags = tasks.expand((t) => t.tags).toSet().toList();
+    tags.removeWhere((t) => t == 'today' || t == 'important');
+    return tags;
+  }
+
+  List<Todo> get filteredTasks {
+    switch (_selectedListType) {
+      case SmartListType.all:
+        return tasks;
+      case SmartListType.today:
+        return tasks.where((t) => t.tags.contains('today')).toList();
+      case SmartListType.important:
+        return tasks.where((t) => t.tags.contains('important')).toList();
+      case SmartListType.custom:
+        if (_selectedCustomTag != null) {
+          return tasks
+              .where((t) => t.tags.contains(_selectedCustomTag!))
+              .toList();
+        }
+        return [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tasks = tasksByList[_selectedListKey] ?? [];
+    final listTitle = _selectedListType == SmartListType.custom
+        ? _selectedCustomTag ?? ''
+        : smartLists.firstWhere((s) => s['type'] == _selectedListType)['title'];
+    final listColor = _selectedListType == SmartListType.custom
+        ? Colors.green
+        : smartLists.firstWhere((s) => s['type'] == _selectedListType)['color'];
+    final listIcon = _selectedListType == SmartListType.custom
+        ? Icons.label
+        : smartLists.firstWhere((s) => s['type'] == _selectedListType)['icon'];
+    final tasksToShow = filteredTasks;
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            if (_selectedListIcon != null)
-              Icon(_selectedListIcon, color: _selectedListColor),
-            if (_selectedListEmoji != null)
-              Text(_selectedListEmoji!, style: const TextStyle(fontSize: 24)),
+            Icon(listIcon, color: listColor),
             const SizedBox(width: 8),
             Text(
-              _selectedListTitle,
-              style: TextStyle(
-                color: _selectedListColor,
-                fontWeight: FontWeight.bold,
-              ),
+              listTitle,
+              style: TextStyle(color: listColor, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         backgroundColor: const Color(0xFFE0E5EC),
         elevation: 0,
-        iconTheme: IconThemeData(color: _selectedListColor),
+        iconTheme: IconThemeData(color: listColor),
       ),
       drawer: Drawer(
         child: SafeArea(
@@ -213,9 +206,7 @@ class _TodoListPageState extends State<TodoListPage> {
                 (smartList) => ListTile(
                   leading: Icon(smartList['icon'], color: smartList['color']),
                   title: Text(smartList['title']),
-                  selected:
-                      _selectedListKey ==
-                      smartList['type'].toString().split('.').last,
+                  selected: _selectedListType == smartList['type'],
                   onTap: () => _selectSmartList(smartList),
                 ),
               ),
@@ -223,197 +214,83 @@ class _TodoListPageState extends State<TodoListPage> {
               const Padding(
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'マイリスト',
+                  'カスタムタグ',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
-              Expanded(
-                child: ListView(
-                  children: myLists.map((myList) {
-                    final isTarget = _dragTargetListId == myList['id'];
-                    return DragTarget<Todo>(
-                      onWillAccept: (data) => data != null,
-                      onAccept: (todo) {
-                        setState(() {
-                          tasksByList[_selectedListKey]?.remove(todo);
-                          tasksByList[myList['id']] ??= [];
-                          tasksByList[myList['id']]!.add(todo);
-                        });
-                        _saveTasks();
-                      },
-                      onMove: (details) {
-                        setState(() {
-                          _dragTargetListId = myList['id'];
-                        });
-                      },
-                      onLeave: (data) {
-                        setState(() {
-                          _dragTargetListId = null;
-                        });
-                      },
-                      builder: (context, candidateData, rejectedData) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            border: isTarget
-                                ? Border.all(color: Colors.blue, width: 2)
-                                : null,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ListTile(
-                            leading: Text(
-                              myList['emoji'],
-                              style: const TextStyle(fontSize: 24),
-                            ),
-                            title: Text(myList['name']),
-                            selected: _selectedListKey == myList['id'],
-                            onTap: () => _selectMyList(myList),
-                          ),
-                        );
-                      },
-                    );
-                  }).toList(),
+              ...customTags.map(
+                (tag) => ListTile(
+                  leading: const Icon(Icons.label, color: Colors.green),
+                  title: Text(tag),
+                  selected:
+                      _selectedListType == SmartListType.custom &&
+                      _selectedCustomTag == tag,
+                  onTap: () => _selectCustomTag(tag),
                 ),
               ),
             ],
           ),
         ),
       ),
-      body: tasks.isEmpty
+      body: tasksToShow.isEmpty
           ? const Center(child: Text('タスクがありません'))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: tasks.length,
+              itemCount: tasksToShow.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
-                final todo = tasks[index];
-                return LongPressDraggable<Todo>(
-                  data: todo,
-                  feedback: TodoListItem(
-                    todo: todo,
-                    onChanged: (checked) {
-                      setState(() {
-                        todo.isDone = checked ?? false;
-                      });
-                      _saveTasks();
-                    },
-                    onDelete: () {
-                      setState(() {
-                        tasksByList[_selectedListKey]?.remove(todo);
-                      });
-                      _saveTasks();
-                    },
-                    onToggleImportant: () {
-                      setState(() {
-                        todo.isImportant = !todo.isImportant;
-                      });
-                      _saveTasks();
-                    },
-                    isFeedback: true,
-                  ),
-                  childWhenDragging: TodoListItem(
-                    todo: todo,
-                    onChanged: (checked) {
-                      setState(() {
-                        todo.isDone = checked ?? false;
-                      });
-                      _saveTasks();
-                    },
-                    onDelete: () {
-                      setState(() {
-                        tasksByList[_selectedListKey]?.remove(todo);
-                      });
-                      _saveTasks();
-                    },
-                    onToggleImportant: () {
-                      setState(() {
-                        todo.isImportant = !todo.isImportant;
-                      });
-                      _saveTasks();
-                    },
-                    isDragging: true,
-                  ),
-                  child: GestureDetector(
-                    onTap: () async {
-                      final updated = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TodoDetailPage(todo: todo),
-                        ),
-                      );
-                      if (updated is Todo) {
-                        setState(() {
-                          final idx = tasksByList[_selectedListKey]?.indexOf(
-                            todo,
-                          );
-                          if (idx != null && idx >= 0) {
-                            tasksByList[_selectedListKey]![idx] = updated;
-                          }
-                        });
-                        _saveTasks();
+                final todo = tasksToShow[index];
+                return TodoListItem(
+                  todo: todo,
+                  onChanged: (checked) {
+                    setState(() {
+                      todo.isDone = checked ?? false;
+                    });
+                    _saveTasks();
+                  },
+                  onDelete: () {
+                    setState(() {
+                      tasks.remove(todo);
+                    });
+                    _saveTasks();
+                  },
+                  onToggleImportant: () {
+                    setState(() {
+                      todo.isImportant = !todo.isImportant;
+                      if (todo.isImportant &&
+                          !todo.tags.contains('important')) {
+                        todo.tags.add('important');
+                      } else if (!todo.isImportant &&
+                          todo.tags.contains('important')) {
+                        todo.tags.remove('important');
                       }
-                    },
-                    child: TodoListItem(
-                      todo: todo,
-                      onChanged: (checked) {
-                        setState(() {
-                          todo.isDone = checked ?? false;
-                        });
-                        _saveTasks();
-                      },
-                      onDelete: () {
-                        setState(() {
-                          tasksByList[_selectedListKey]?.remove(todo);
-                        });
-                        _saveTasks();
-                      },
-                      onToggleImportant: () {
-                        setState(() {
-                          todo.isImportant = !todo.isImportant;
-                        });
-                        _saveTasks();
-                      },
-                      activeColor: _selectedListColor,
-                    ),
-                  ),
+                    });
+                    _saveTasks();
+                  },
+                  activeColor: listColor,
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final newTitle = await showDialog<String>(
-            context: context,
-            builder: (context) {
-              String input = '';
-              return AlertDialog(
-                title: const Text('新しいタスクを追加'),
-                content: TextField(
-                  autofocus: true,
-                  decoration: const InputDecoration(hintText: 'タスク名を入力...'),
-                  onChanged: (value) => input = value,
-                  onSubmitted: (value) => Navigator.of(context).pop(value),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('キャンセル'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(input),
-                    child: const Text('追加'),
-                  ),
-                ],
-              );
-            },
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TodoAddPage()),
           );
-          if (newTitle != null && newTitle.trim().isNotEmpty) {
+          if (result is Map<String, dynamic>) {
             setState(() {
-              tasksByList[_selectedListKey] ??= [];
-              tasksByList[_selectedListKey]!.add(Todo(title: newTitle.trim()));
+              tasks.add(
+                Todo(
+                  title: result['title'],
+                  isImportant: result['isImportant'] ?? false,
+                  tags: List<String>.from(result['tags'] ?? []),
+                ),
+              );
             });
             _saveTasks();
           }
         },
-        backgroundColor: _selectedListColor,
+        backgroundColor: listColor,
         child: const Icon(Icons.add),
       ),
     );
